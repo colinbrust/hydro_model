@@ -1,11 +1,12 @@
-#"https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultipleStationReport/daily/start_of_period/1040:CO:SNTL|619:OR:SNTL|1048:NM:SNTL|name/POR_BEGIN,POR_END/stationId,WTEQ::value,state.code,network.code"
 import pandas as pd
-import requests
 
-# function that reads the .json of snotel stations in MT and creates a string that can be used to retrieve the data from
-# the snotel api.
-# json_file should be the path to the swecoords.json on your machine.
+
 def read_snotel_stations(json_file):
+    """
+    Reads the swecoord.json and creates a list of station IDs that will be used to retrieve data from the SNOTEL api.
+    :param json_file: a file that contains SNOTEL station IDs and their coordinates, string
+    :return: list of SNOTEL station IDs
+    """
 
     df = pd.read_json(json_file).transpose().reset_index()
     df['index'] = df['index'].apply(str)
@@ -16,27 +17,37 @@ def read_snotel_stations(json_file):
     return names
 
 
-pd.set_option('display.max_columns', 500)
-# reads each of the stations from the function above and then gives daily SWE for the date range provided
-# dates should be formatted as strings (e.g. start_date="2017-01-01", end_date="2018-01-01")
-#
-def get_snotel(start_date, end_date, json_file, out_name="../"):
+def get_snotel(start_date, end_date, json_file="../data/swecoords.json", out_name="../data/snotel_swe.csv"):
+    """
+    Retrieves data from the SNOTEL api and returns a pandas data frame of SWE values for all SNOTEL stations in Montana
+    for a given date range
+    :param start_date: start date of data retrieval, string
+    :param end_date: end date of data retrieval, string
+    :param json_file: a file that contains SNOTEL station IDs and their coordinates, string
+    :param out_name: path on local machine to save the snotel data to, string
+    :return: None
+    """
 
     stations = read_snotel_stations(json_file)
     base_str = "https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultipleStationReport/daily/start_of_period/"
-    df = pd.DataFrame()
+
+    swe_vals = pd.DataFrame()
 
     for station in stations:
+        print(station)
+        station_number = station.split(":")[0]
 
         new_str = base_str + station + "|name/" + start_date + "," + end_date + "/stationId,WTEQ::value"
-        test = pd.read_csv(new_str, header=53, names=['date', 'id', 'swe'])
-        df = df.append(test, ignore_index=True)
+        dat = pd.read_csv(new_str, header=53, names=['date', 'station_id', station_number],
+                          usecols=['date', station_number],
+                          date_parser=pd.to_datetime, index_col=0)
 
-        print(df.tail(10))
+        swe_vals = pd.concat([swe_vals, dat], axis=1)
 
-    return df
+    swe_vals.to_csv(out_name)
 
 
-print(get_snotel("../data/swecoords.json", "2016-09-01", "2017-08-31"))
+# example to run code:
+# get_snotel("2016-08-31", "2017-08-30", "../data/swecoords.json", "../data/snotel_swe.csv")
 
 
