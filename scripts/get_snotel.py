@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def read_snotel_stations(json_file):
+def __read_snotel_stations(json_file):
     """
     Reads the swecoord.json and creates a list of station IDs that will be used to retrieve data from the SNOTEL api.
     :param json_file: a file that contains SNOTEL station IDs and their coordinates, string
@@ -28,7 +28,7 @@ def get_snotel(start_date, end_date, json_file="../data/swecoords.json", out_nam
     :return: None
     """
 
-    stations = read_snotel_stations(json_file)
+    stations = __read_snotel_stations(json_file)
     base_str = "https://wcc.sc.egov.usda.gov/reportGenerator/view_csv/customMultipleStationReport/daily/start_of_period/"
 
     swe_vals = pd.DataFrame()
