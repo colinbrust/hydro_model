@@ -1,0 +1,6 @@
+/data/*
+/params/*
+/runoff_code/*
+/utils/*
+/.idea/*
+/.DS_Store
