@@ -8,7 +8,7 @@ class TestGenModelParams(object):
         """This method is run once for each class before any tests are run"""
         f = "../params/param_files_test.json"
         cls.size = 1000
-        cls.param_gen_obj = modelGen.GenModelParams(f, cls.size)
+        cls.param_gen_obj = modelGen.DawuapMonteCarlo(f, cls.size)
 
     @classmethod
     def teardown_class(cls):
@@ -25,9 +25,9 @@ class TestGenModelParams(object):
         df = TestGenModelParams.param_gen_obj._get_raster_values()
         nose.tools.assert_equals(df.shape[0], TestGenModelParams.size)
 
-
     def test_set_rand_array(self):
 
-        TestGenModelParams.param_gen_obj.set_rand_array(5)
-        nose.tools.assert_equals(TestGenModelParams.param_gen_obj.rand_array, 5)
+        TestGenModelParams.param_gen_obj.set_rand_array()
+        nose.tools.assert_equals(TestGenModelParams.param_gen_obj.rand_array.shape[0],
+                                 TestGenModelParams.size)
 
