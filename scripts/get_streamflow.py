@@ -1,4 +1,4 @@
-import retrieveHydroData as rhd
+from runoff_code import retrieveHydroData as rhd
 import json
 import os
 import glob
