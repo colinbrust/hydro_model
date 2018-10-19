@@ -4,3 +4,4 @@
 /utils/*
 /.idea/*
 /.DS_Store
+/.vagrant/*
