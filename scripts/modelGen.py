@@ -13,7 +13,11 @@ class DawuapMonteCarlo(object):
 
         self.param_files = param_files
         self.rand_size = rand_size
+        self.run_number = 0
         self.rand_array = None
+        self.rast_params = None
+        self.stream_params = None
+        self.basin_params = None
 
     def _get_raster_values(self):
 
@@ -102,6 +106,56 @@ class DawuapMonteCarlo(object):
                                      self._get_raster_values()], axis=1)
 
 
+    def _create_raster_parameters(self):
+
+        with open(self.param_files) as json_data:
+            dat = json.load(json_data)
+
+        params = {}
+
+        for feat in dat:
+
+            value = self.rand_array[dat[feat]].iloc[self.run_number]
+            rast = utilsRaster.RasterParameterIO('../params/' + dat[feat])
+            rast.array.fill(value)
+            params[feat] = rast
+
+
+    def _create_basin_parameters(self):
+
+        sub_vec = utilsVector.VectorParameterIO('../params/subsout.shp')
+
+        lstDict = []
+        for feat in sub_vec.read_features():
+            feat['properties']['hbv_ck0'] = self.rand_array['hbv_ck0'].iloc[self.run_number]
+            feat['properties']['hbv_ck1'] = self.rand_array['hbv_ck1'].iloc[self.run_number]
+            feat['properties']['hbv_ck2'] = self.rand_array['hbv_ck2'].iloc[self.run_number]
+            feat['properties']['hbv_hl1'] = self.rand_array['hbv_hl1'].iloc[self.run_number]
+            feat['properties']['hbv_perc'] = self.rand_array['hbv_perc'].iloc[self.run_number]
+            feat['properties']['hbv_pbase'] = self.rand_array['hbv_pbase'].iloc[self.run_number]
+
+            lstDict.append(feat)
+
+        #sub_vec.write_dataset('../temp/temp_basin.shp', params=lstDict)
+
+
+        return None
+
+    def _create_river_parameters(self):
+
+        riv_vec = utilsVector.VectorParameterIO('../params/rivout.shp')
+
+        lstDict = []
+        for feat in riv_vec.read_features():
+
+            feat['properties']['e'] = self.rand_array['e'].iloc[self.run_number]
+            feat['properties']['ks'] = self.rand_array['ks'].iloc[self.run_number]
+
+            lstDict.append(feat)
+
+        riv_vec.write_dataset('..temp/temp_riv.shp', params=lstDict)
+
+        return None
 
 
 
@@ -109,4 +163,4 @@ test = DawuapMonteCarlo("../params/param_files_test.json", 1000)
 
 test.set_rand_array()
 
-print(test.rand_array)
+test._create_basin_parameters()
