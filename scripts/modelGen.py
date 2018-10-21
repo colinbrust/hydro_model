@@ -4,6 +4,7 @@ from utils import utilsVector
 from utils import utilsRaster
 import numpy as np
 import math
+import os
 import glob
 
 
@@ -14,6 +15,7 @@ class DawuapMonteCarlo(object):
         self.param_files = param_files
         self.rand_size = rand_size
         self.run_number = 0
+        self.use_dir = None
         self.rand_array = None
         self.rast_params = None
         self.stream_params = None
@@ -105,20 +107,44 @@ class DawuapMonteCarlo(object):
                                      self._get_basin_values(),
                                      self._get_raster_values()], axis=1)
 
+    def gen_use_dir(self):
+
+        default_number = 1
+        default_name = "../temp/temp_" + str(default_number)
+
+        while os.path.isdir(default_name):
+            default_number += 1
+            default_name = "../temp/temp_" + str(default_number)
+
+        os.makedirs(default_name)
+        self.use_dir = default_name
+
+    def _clean_up(self):
+
+        os.rmdir(self.use_dir)
 
     def _create_raster_parameters(self):
 
         with open(self.param_files) as json_data:
             dat = json.load(json_data)
 
-        params = {}
-
         for feat in dat:
 
             value = self.rand_array[dat[feat]].iloc[self.run_number]
             rast = utilsRaster.RasterParameterIO('../params/' + dat[feat])
             rast.array.fill(value)
-            params[feat] = rast
+
+            rast_name = os.path.join(self.use_dir, dat[feat])
+
+            rast.write_array_to_geotiff(rast_name, np.squeeze(rast.array))
+
+            dat[feat] = rast_name
+
+        json_name = os.path.join(self.use_dir, 'json_use.json')
+        self.param_files = json_name
+
+        with open(json_name, 'wb') as outfile:
+            json.dump(dat, outfile)
 
 
     def _create_basin_parameters(self):
@@ -136,10 +162,8 @@ class DawuapMonteCarlo(object):
 
             lstDict.append(feat)
 
-        #sub_vec.write_dataset('../temp/temp_basin.shp', params=lstDict)
-
-
-        return None
+        out_name = os.path.join(self.use_dir, 'basin_out.shp')
+        sub_vec.write_dataset(out_name, params=lstDict)
 
     def _create_river_parameters(self):
 
@@ -153,14 +177,20 @@ class DawuapMonteCarlo(object):
 
             lstDict.append(feat)
 
-        riv_vec.write_dataset('..temp/temp_riv.shp', params=lstDict)
+        out_name = os.path.join(self.use_dir, 'river_out.shp')
+        riv_vec.write_dataset(out_name, params=lstDict)
 
-        return None
+    def _write_random_parameters(self):
+
+        self._create_raster_parameters()
+        self._create_basin_parameters()
+        self._create_river_parameters()
+
 
 
 
 test = DawuapMonteCarlo("../params/param_files_test.json", 1000)
-
 test.set_rand_array()
+test.use_dir = "../temp/temp_1"
+test._write_random_parameters()
 
-test._create_basin_parameters()
