@@ -5,14 +5,17 @@ from utils import utilsRaster
 import numpy as np
 import math
 import os
+from shutil import copyfile, rmtree
+from argparse import Namespace
 import glob
+#import hydrovehicle
 
 
 class DawuapMonteCarlo(object):
 
-    def __init__(self, param_files, rand_size):
+    def __init__(self, model_directory, rand_size):
 
-        self.param_files = param_files
+        self.model_directory = model_directory
         self.rand_size = rand_size
         self.run_number = 0
         self.use_dir = None
@@ -25,12 +28,14 @@ class DawuapMonteCarlo(object):
 
         out_df = pd.DataFrame()
 
-        with open(self.param_files) as json_data:
+        with open(os.path.join(self.model_directory, 'params', 'param_files_test.json')) as json_data:
             dat = json.load(json_data)
 
         for feat in dat.values():
 
-            arr = utilsRaster.RasterParameterIO("../params/" + feat).array
+            rast_name = os.path.join(self.model_directory, 'params', feat)
+
+            arr = utilsRaster.RasterParameterIO(rast_name).array
             val = np.unique(arr.squeeze())
             by_val = val/2.
 
@@ -45,7 +50,7 @@ class DawuapMonteCarlo(object):
 
         out_df = pd.DataFrame()
 
-        dat = utilsVector.VectorParameterIO("../params/subsout.shp")
+        dat = utilsVector.VectorParameterIO(os.path.join(self.model_directory, 'params/subsout.shp'))
         hbv_ck0 = np.zeros(1)
         hbv_ck1 = np.zeros(1)
         hbv_ck2 = np.zeros(1)
@@ -107,49 +112,45 @@ class DawuapMonteCarlo(object):
                                      self._get_basin_values(),
                                      self._get_raster_values()], axis=1)
 
-    def gen_use_dir(self):
+    def _gen_use_dir(self):
 
         default_number = 1
-        default_name = "../temp/temp_" + str(default_number)
+        default_name = os.path.join(self.model_directory, 'temp', 'temp' + str(default_number))
 
         while os.path.isdir(default_name):
             default_number += 1
-            default_name = "../temp/temp_" + str(default_number)
+            default_name = os.path.join(self.model_directory, 'temp', 'temp' + str(default_number))
 
         os.makedirs(default_name)
         self.use_dir = default_name
+        os.chdir(self.use_dir)
 
     def _clean_up(self):
 
-        os.rmdir(self.use_dir)
+        rmtree(self.use_dir)
+        self.use_dir = None
+        os.chdir(self.model_directory)
 
     def _create_raster_parameters(self):
 
-        with open(self.param_files) as json_data:
+        with open(os.path.join(self.model_directory, 'params', 'param_files_test.json')) as json_data:
             dat = json.load(json_data)
 
         for feat in dat:
 
             value = self.rand_array[dat[feat]].iloc[self.run_number]
-            rast = utilsRaster.RasterParameterIO('../params/' + dat[feat])
+            rast = utilsRaster.RasterParameterIO(os.path.join(self.model_directory, 'params', dat[feat]))
             rast.array.fill(value)
 
-            rast_name = os.path.join(self.use_dir, dat[feat])
+            rast.write_array_to_geotiff(dat[feat], np.squeeze(rast.array))
 
-            rast.write_array_to_geotiff(rast_name, np.squeeze(rast.array))
-
-            dat[feat] = rast_name
-
-        json_name = os.path.join(self.use_dir, 'json_use.json')
-        self.param_files = json_name
-
-        with open(json_name, 'wb') as outfile:
-            json.dump(dat, outfile)
+        copyfile(os.path.join(self.model_directory, 'params/param_files_test.json'),
+                 os.path.join(os.getcwd(), 'rast_params.json'))
 
 
     def _create_basin_parameters(self):
 
-        sub_vec = utilsVector.VectorParameterIO('../params/subsout.shp')
+        sub_vec = utilsVector.VectorParameterIO(os.path.join(self.model_directory, 'params/subsout.shp'))
 
         lstDict = []
         for feat in sub_vec.read_features():
@@ -162,12 +163,11 @@ class DawuapMonteCarlo(object):
 
             lstDict.append(feat)
 
-        out_name = os.path.join(self.use_dir, 'basin_out.shp')
-        sub_vec.write_dataset(out_name, params=lstDict)
+        sub_vec.write_dataset('basin_out.shp', params=lstDict)
 
     def _create_river_parameters(self):
 
-        riv_vec = utilsVector.VectorParameterIO('../params/rivout.shp')
+        riv_vec = utilsVector.VectorParameterIO(os.path.join(self.model_directory, 'params/rivout.shp'))
 
         lstDict = []
         for feat in riv_vec.read_features():
@@ -177,20 +177,83 @@ class DawuapMonteCarlo(object):
 
             lstDict.append(feat)
 
-        out_name = os.path.join(self.use_dir, 'river_out.shp')
-        riv_vec.write_dataset(out_name, params=lstDict)
+        riv_vec.write_dataset('river_out.shp', params=lstDict)
 
     def _write_random_parameters(self):
 
+        self._gen_use_dir()
         self._create_raster_parameters()
         self._create_basin_parameters()
         self._create_river_parameters()
 
+    def _run_singular_model(self):
+
+        args = Namespace(init_date='08/31/2013',
+                         precip=os.path.join(self.model_directory, 'params/precip_F2012-09-01_T2013-08-31.nc'),
+                         tmin=os.path.join(self.model_directory, 'params/tempmin_F2012-09-01_T2013-08-31.nc'),
+                         tmax=os.path.join(self.model_directory, 'params/tempmax_F2012-09-01_T2013-08-31.nc'),
+                         params='rast_params.json',
+                         network_file='river_out.shp',
+                         basin_shp='basin_out.shp')
+
+        #hydrovehicle.main(args)
+
+    def _calc_swe_error(self):
+
+        dfSNOTEL = pd.read_json(os.path.join(self.model_directory, 'data/swecoords.json'))
+
+        coords = zip(dfSNOTEL.values[0], dfSNOTEL.values[1])
+
+        datarow = []
+        dates = []
+
+        for rast in glob.glob("./swe_*.tif"):
+
+            swe = utilsRaster.RasterParameterIO(rast)
+            colrow = [~swe.transform * c for c in coords]
+            swearray = swe.array.squeeze()
+            values = [swearray[int(c[1]), int(c[0])] for c in colrow]
+
+            date = rast.split('_')[-1].split('.')[0]
+
+            # Appending values to include date
+            datarow.append(values)
+            dates.append(date)
+
+        # Dataframe with SWE values indexed and sorted by date, and added SNOTEL Station ID
+        dfFinal = pd.DataFrame(datarow, index=pd.to_datetime(dates))
+        dfFinal.columns = dfSNOTEL.columns
+        dfFinal = dfFinal.sort_index()
+
+        return dfFinal
 
 
 
-test = DawuapMonteCarlo("../params/param_files_test.json", 1000)
-test.set_rand_array()
-test.use_dir = "../temp/temp_1"
-test._write_random_parameters()
+    def _generate_error_statistics(self):
+
+        print self.run_number
+
+    def run_model(self):
+
+        for i in range(self.rand_size):
+
+            self._write_random_parameters()
+            self._run_singular_model()
+            self._generate_error_statistics()
+            self._clean_up()
+
+            self.run_number += 1
+
+
+test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1000)
+# test.set_rand_array()
+# test.run_model()
+
+os.chdir('../temp/temp1')
+
+print(test._calc_swe_error())
+
+#test._clean_up()
+#test._create_river_parameters()
+#test._write_random_parameters()
 
