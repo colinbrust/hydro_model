@@ -9,6 +9,21 @@ retrieveHydroData class, downloadStreamflowFromGeoJsonand json2dataframe functio
 minimal changes.
 """
 
+def _get_relevant_stations(corresponding):
+
+    with open(corresponding) as f:
+        corresponding = json.load(f)
+
+    station = []
+    node = []
+    for value in corresponding['data']:
+
+        station.append(value['STAID'])
+        node.append(value['nodeID'])
+
+    return pd.DataFrame({'station': station,
+                         'node': node})
+
 
 def downloadStreamflowFromGeoJson(fnPointFeatures, target_dir, startDT, endDT):
     """
@@ -22,16 +37,20 @@ def downloadStreamflowFromGeoJson(fnPointFeatures, target_dir, startDT, endDT):
     with open(fnPointFeatures) as f:
         stmGauges = json.load(f)
 
+    stations = _get_relevant_stations('../data/active_gauge_2.5mi.json')
+
     fetcher = rhd.retrieve_streamflows()
     for feats in (stmGauges['features']):
-        print "Downloading station " + feats['properties']['STANAME']
-        stid = feats['properties']['STAID']
-        data = fetcher.retrieveQ(stid, startDT=startDT, endDT=endDT)
+        if feats['properties']['STAID'] in stations['station'].tolist():
 
-        filename = os.path.join(target_dir, stid + '.json')
+            print "Downloading station " + feats['properties']['STANAME']
+            stid = feats['properties']['STAID']
+            data = fetcher.retrieveQ(stid, startDT=startDT, endDT=endDT)
 
-        with open(filename, 'w') as f1:
-            json.dump(data.json(), f1)
+            filename = os.path.join(target_dir, stid + '.json')
+
+            with open(filename, 'w') as f1:
+                json.dump(data.json(), f1)
 
 
 def json2dataframe(data):
@@ -59,11 +78,9 @@ def format_streamflows(data_dir):
     :return: pandas dataframe of all streamflow data from all MT gages.
     """
 
-    search_expr = data_dir + "/*.json"
-
     df = pd.DataFrame()
 
-    for json_file in glob.glob(search_expr):
+    for json_file in glob.glob(data_dir + "/*.json"):
 
         with open(json_file, 'r') as fn:
             data = json.load(fn)
@@ -102,6 +119,14 @@ def aggregateFunctions(fnPointFeatures, start_date, end_date, out_dir):
 
     dat.to_csv(fname)
 
+test = pd.read_csv('../data/streamflow/pd_streamflow.csv')
 
-# example to run code:
-# aggregateFunctions('../data/MT_active_gages.geojson', '2016-08-31', '2017-09-01', '../data/streamflow')
+stations = _get_relevant_stations('../data/active_gauge_2.5mi.json')
+
+print(stations)
+print(test)
+
+
+
+
+#aggregateFunctions('../data/MT_active_gages.geojson', '2012-09-01', '2017-08-31', '../data/streamflow')

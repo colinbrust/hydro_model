@@ -198,7 +198,7 @@ class DawuapMonteCarlo(object):
 
         #hydrovehicle.main(args)
 
-    def _calc_swe_error(self):
+    def _get_model_swe(self):
 
         dfSNOTEL = pd.read_json(os.path.join(self.model_directory, 'data/swecoords.json'))
 
@@ -227,6 +227,32 @@ class DawuapMonteCarlo(object):
 
         return dfFinal
 
+    def _calc_swe_error(self):
+
+        return None
+
+    def _format_model_sf(self):
+
+        with open('./streamflows.json') as f:
+            flows = json.load(f)
+
+        df = pd.DataFrame()
+        nodes = flows['nodes']
+
+        for node in nodes:
+
+            date_list = node['dates']
+            id = node['id']
+
+            flows = pd.DataFrame(date_list, columns=['date', 'flow'])
+            flows = flows.rename(columns={'flow': id})
+            flows = flows.set_index(['date'])
+
+            df = pd.concat([df, flows], axis=1)
+
+        print df
+        return df
+
 
 
     def _generate_error_statistics(self):
@@ -251,7 +277,7 @@ test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1000)
 
 os.chdir('../temp/temp1')
 
-print(test._calc_swe_error())
+test._format_model_sf()
 
 #test._clean_up()
 #test._create_river_parameters()
