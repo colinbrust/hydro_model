@@ -3,6 +3,7 @@ import json
 import os
 import glob
 import pandas as pd
+import numpy as np
 
 """
 retrieveHydroData class, downloadStreamflowFromGeoJsonand json2dataframe functions taken from Marco Maneta with 
@@ -22,7 +23,7 @@ def _get_relevant_stations(corresponding):
         node.append(value['nodeID'])
 
     return pd.DataFrame({'station': station,
-                         'node': node})
+                         'node': node}, dtype='str')
 
 
 def downloadStreamflowFromGeoJson(fnPointFeatures, target_dir, startDT, endDT):
@@ -100,7 +101,7 @@ def format_streamflows(data_dir):
     return df
 
 
-def aggregateFunctions(fnPointFeatures, start_date, end_date, out_dir):
+def aggregateFunctions(gaugeReferences, fnPointFeatures, start_date, end_date, out_dir):
     """
     Retrieves streamflow data data from usgs and then formats it into a pandas df that matches model output.
 
@@ -111,22 +112,35 @@ def aggregateFunctions(fnPointFeatures, start_date, end_date, out_dir):
     :return: None
     """
 
-    downloadStreamflowFromGeoJson(fnPointFeatures=fnPointFeatures, target_dir=out_dir,
-                                  startDT=start_date, endDT=end_date)
+    # downloadStreamflowFromGeoJson(fnPointFeatures=fnPointFeatures, target_dir=out_dir,
+    #                               startDT=start_date, endDT=end_date)
 
     dat = format_streamflows(out_dir)
+
+    stations = _get_relevant_stations(gaugeReferences)
+
+    for col in dat:
+
+        if stations['station'].str.contains(col).any():
+
+            location = stations[stations['station'] == col]
+
+            new_col = location.node.values[0]
+
+            dat = dat.rename(columns={col: str(new_col)})
+
     fname = out_dir + '/pd_streamflow.csv'
 
     dat.to_csv(fname)
 
+    print dat.columns
+
+aggregateFunctions('../data/active_gauge_2.5mi.json', '../data/MT_active_gages.geojson', '2012-09-01',
+                   '2017-08-31', '../data/streamflow')
+
+
+
+
 test = pd.read_csv('../data/streamflow/pd_streamflow.csv')
 
-stations = _get_relevant_stations('../data/active_gauge_2.5mi.json')
-
-print(stations)
-print(test)
-
-
-
-
-#aggregateFunctions('../data/MT_active_gages.geojson', '2012-09-01', '2017-08-31', '../data/streamflow')
+print test.columns

@@ -20,9 +20,8 @@ class DawuapMonteCarlo(object):
         self.run_number = 0
         self.use_dir = None
         self.rand_array = None
-        self.rast_params = None
-        self.stream_params = None
-        self.basin_params = None
+        self.model_swe = None
+        self.model_run = None
 
     def _get_raster_values(self):
 
@@ -225,11 +224,26 @@ class DawuapMonteCarlo(object):
         dfFinal.columns = dfSNOTEL.columns
         dfFinal = dfFinal.sort_index()
 
-        return dfFinal
+        self.model_swe = dfFinal
+
 
     def _calc_swe_error(self):
 
-        return None
+        self._get_model_swe()
+        real_swe = pd.read_csv(os.path.join(self.model_directory, 'data/snotel_swe.csv'),
+                               index_col='date')
+        real_swe.columns = real_swe.columns.astype(int)
+        real_swe.sort_index(axis=1, inplace=True)
+        real_swe.index = pd.to_datetime(real_swe.index)
+
+        self.model_swe.columns = self.model_swe.columns.astype(int)
+        self.model_swe.sort_index(axis=1, inplace=True)
+        self.model_swe.index = pd.to_datetime(self.model_swe.index)
+
+        bools = [i in self.model_swe.index.values for i in real_swe.index.values]
+        real_swe = real_swe[bools]
+
+        print self.model_swe, real_swe
 
     def _format_model_sf(self):
 
@@ -250,7 +264,6 @@ class DawuapMonteCarlo(object):
 
             df = pd.concat([df, flows], axis=1)
 
-        print df
         return df
 
 
@@ -277,7 +290,8 @@ test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1000)
 
 os.chdir('../temp/temp1')
 
-test._format_model_sf()
+
+test._calc_swe_error()
 
 #test._clean_up()
 #test._create_river_parameters()
