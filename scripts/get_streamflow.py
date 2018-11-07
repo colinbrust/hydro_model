@@ -61,14 +61,24 @@ def json2dataframe(data):
     :param usgs_jsondata:
     :return: pandas dataframe, site id
     """
+
     # Load and parse the available streamflow data
+
     siteId = data['value']['timeSeries'][0]['sourceInfo']['siteCode'][0]['value']
-    df = pd.DataFrame(data['value']['timeSeries'][0]['values'][0]['value'])
-    df = df.set_index(df['dateTime'], drop=True)
-    df['value'] = df['value'].astype('float32')
-    df.index = pd.to_datetime(df.index)
-    last_available_date = df.index[-1].strftime("%Y-%m-%d")
-    return df, siteId, last_available_date
+    print siteId
+
+    try:
+        df = pd.DataFrame(data['value']['timeSeries'][0]['values'][0]['value'])
+        df = df.set_index(df['dateTime'], drop=True)
+        df['value'] = df['value'].astype('float32')
+        df.index = pd.to_datetime(df.index)
+        last_available_date = df.index[-1].strftime("%Y-%m-%d")
+        return df, siteId, last_available_date
+
+    except KeyError, e:
+        print 'error:', e
+        return pd.DataFrame()
+
 
 
 def format_streamflows(data_dir):
@@ -101,6 +111,7 @@ def format_streamflows(data_dir):
     return df
 
 
+
 def aggregateFunctions(gaugeReferences, fnPointFeatures, start_date, end_date, out_dir):
     """
     Retrieves streamflow data data from usgs and then formats it into a pandas df that matches model output.
@@ -129,18 +140,16 @@ def aggregateFunctions(gaugeReferences, fnPointFeatures, start_date, end_date, o
 
             dat = dat.rename(columns={col: str(new_col)})
 
-    fname = out_dir + '/pd_streamflow.csv'
+    dat = dat.iloc[:, ~dat.columns.duplicated()]
 
-    dat.to_csv(fname)
+    dat.columns = dat.columns.astype(int)
+    dat.sort_index(axis=1, inplace=True)
 
-    print dat.columns
+    # convert to cubic meters per second
+    dat = dat * 0.028316846592
 
-aggregateFunctions('../data/active_gauge_2.5mi.json', '../data/MT_active_gages.geojson', '2012-09-01',
-                   '2017-08-31', '../data/streamflow')
+    dat.to_csv(os.path.join(out_dir, 'pd_streamflow.csv'))
 
+aggregateFunctions('../data/active_gauge_2.5mi.json', '../data/MT_active_gages.geojson', '2012-08-31',
+                   '2013-08-30', '../data/streamflow')
 
-
-
-test = pd.read_csv('../data/streamflow/pd_streamflow.csv')
-
-print test.columns

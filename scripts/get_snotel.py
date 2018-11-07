@@ -34,7 +34,7 @@ def get_snotel(start_date, end_date, json_file="../data/swecoords.json", out_nam
     swe_vals = pd.DataFrame()
 
     for station in stations:
-        print(station)
+
         station_number = station.split(":")[0]
 
         new_str = base_str + station + "|name/" + start_date + "," + end_date + "/stationId,WTEQ::value"
@@ -44,10 +44,11 @@ def get_snotel(start_date, end_date, json_file="../data/swecoords.json", out_nam
 
         swe_vals = pd.concat([swe_vals, dat], axis=1)
 
+    swe_vals = swe_vals * 25.4
     swe_vals.to_csv(out_name)
 
 
 # example to run code:
-# get_snotel("2016-08-31", "2017-08-30", "../data/swecoords.json", "../data/snotel_swe.csv")
+get_snotel("2016-08-31", "2017-08-30", "../data/swecoords.json", "../data/snotel_swe.csv")
 
 
