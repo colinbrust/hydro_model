@@ -9,7 +9,7 @@ from shutil import copyfile, rmtree
 from argparse import Namespace
 import glob
 from spotpy.objectivefunctions import kge
-import hydrovehicle
+#import hydrovehicle
 
 
 class DawuapMonteCarlo(object):
@@ -298,8 +298,8 @@ class DawuapMonteCarlo(object):
         self.model_run = df
 
         # ensures that only matching dates are compared
-        # bools = [i in self.real_run.index.values for i in self.model_run.index.values]
-        # self.model_run = self.model_run[bools]
+        bools = [i in self.real_run.index.values for i in self.model_run.index.values]
+        self.model_run = self.model_run[bools]
 
     def _generate_error_statistics(self):
 
@@ -307,21 +307,25 @@ class DawuapMonteCarlo(object):
         self._format_sf_data()
 
         run_error = pd.read_csv(os.path.join(self.err_dir, 'run_error.csv'), index_col=0)
+        run_error.columns = run_error.columns.astype(str)
         swe_error = pd.read_csv(os.path.join(self.err_dir, 'swe_error.csv'), index_col=0)
+        swe_error.columns = swe_error.columns.astype(str)
 
         run_dict = {'run_number': self.run_number}
         swe_dict = {'run_number': self.run_number}
 
         for col in self.model_run:
 
-            run_dict[col] = kge(self.real_run[col].values, self.model_run[col].values)
+            run_dict[str(col)] = kge(self.real_run[col].values, self.model_run[col].values)
 
         for col in self.model_swe:
 
-            swe_dict[col] = kge(self.real_swe[col].values, self.model_swe[col].values)
+            swe_dict[str(col)] = kge(self.real_swe[col].values, self.model_swe[col].values)
 
         run_error = run_error.append(pd.DataFrame(run_dict, index=[1]), sort=True, ignore_index=True)
+        run_error.columns = run_error.columns.astype(str)
         swe_error = swe_error.append(pd.DataFrame(swe_dict, index=[1]), sort=True, ignore_index=True)
+        swe_error.columns = swe_error.columns.astype(str)
 
         run_error.to_csv(os.path.join(self.err_dir, 'run_error.csv'))
         swe_error.to_csv(os.path.join(self.err_dir, 'swe_error.csv'))
@@ -340,13 +344,15 @@ class DawuapMonteCarlo(object):
             self.run_number += 1
 
 
-test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1000)
-test.run_model()
+# replace with your path
+test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1)
 
-# test.err_dir = "/Users/cbandjelly/PycharmProjects/hydro_model/error/error1"
-# os.chdir('../temp/temp1')
-# test._generate_error_statistics()
-# test._clean_up()
-# test._create_river_parameters()
-# test._write_random_parameters()
+test._gen_error_dir()
+test._set_rand_array()
+test._write_random_parameters()
+test._run_singular_model()
+test._generate_error_statistics()
+
+
+
 
