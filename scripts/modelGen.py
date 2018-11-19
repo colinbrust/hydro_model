@@ -1,21 +1,21 @@
+import os
 import json
 import pandas as pd
 from utils import utilsVector
 from utils import utilsRaster
 import numpy as np
 import math
-import os
 from shutil import copyfile, rmtree
 from argparse import Namespace
 import glob
 from spotpy.objectivefunctions import kge
-#import hydrovehicle
-
+import hydrovehicle
 
 class DawuapMonteCarlo(object):
 
-    def __init__(self, model_directory, rand_size):
+    def __init__(self, model_directory, user_inputs=None, rand_size=1):
 
+        self.user_inputs = user_inputs
         self.model_directory = model_directory
         self.rand_size = rand_size
         self.run_number = 0
@@ -26,6 +26,7 @@ class DawuapMonteCarlo(object):
         self.real_swe = None
         self.model_run = None
         self.real_run = None
+
 
     def _get_raster_values(self):
 
@@ -109,6 +110,22 @@ class DawuapMonteCarlo(object):
         return pd.DataFrame({'e': e,
                              'ks': ks})
 
+    def _use_user_params(self):
+
+        out_dict = {}
+        for feat in self.user_inputs:
+
+            if feat == 'hbv_pbase':
+
+                out_vals = np.random.randint(self.user_inputs[feat][0], self.user_inputs[feat][1], self.rand_size)
+                out_dict[feat] = out_vals
+
+            else:
+                out_vals = np.random.uniform(self.user_inputs[feat][0], self.user_inputs[feat][1], self.rand_size)
+                out_dict[feat] = out_vals
+
+        return pd.DataFrame(out_dict)
+
     def _gen_error_dir(self):
 
         default_number = 1
@@ -141,11 +158,17 @@ class DawuapMonteCarlo(object):
 
     def _set_rand_array(self):
 
-        self.rand_array = pd.concat([self._get_river_values(),
-                                     self._get_basin_values(),
-                                     self._get_raster_values()], axis=1)
+        if self.user_inputs is None:
 
-        self.rand_array.to_csv(os.path.join(self.err_dir, 'rand_array.csv'))
+            self.rand_array = pd.concat([self._get_river_values(),
+                                         self._get_basin_values(),
+                                         self._get_raster_values()], axis=1)
+
+            self.rand_array.to_csv(os.path.join(self.err_dir, 'rand_array.csv'))
+
+        else:
+            self.rand_array = self._use_user_params()
+            self.rand_array.to_csv(os.path.join(self.err_dir, 'rand_array.csv'))
 
     def _clean_up(self):
 
@@ -168,7 +191,6 @@ class DawuapMonteCarlo(object):
 
         copyfile(os.path.join(self.model_directory, 'params/param_files_test.json'),
                  os.path.join(os.getcwd(), 'rast_params.json'))
-
 
     def _create_basin_parameters(self):
 
@@ -210,7 +232,7 @@ class DawuapMonteCarlo(object):
 
     def _run_singular_model(self):
 
-        args = Namespace(init_date='08/31/2013',
+        args = Namespace(init_date='08/31/2012',
                          precip=os.path.join(self.model_directory, 'params/precip_F2012-09-01_T2013-08-31.nc'),
                          tmin=os.path.join(self.model_directory, 'params/tempmin_F2012-09-01_T2013-08-31.nc'),
                          tmax=os.path.join(self.model_directory, 'params/tempmax_F2012-09-01_T2013-08-31.nc'),
@@ -220,7 +242,7 @@ class DawuapMonteCarlo(object):
                          restart=False,
                          econengine=None)
 
-        #hydrovehicle.main(args)
+        hydrovehicle.main(args)
 
     def _get_model_swe(self):
 
@@ -274,6 +296,7 @@ class DawuapMonteCarlo(object):
 
         self.real_run = pd.read_csv(os.path.join(self.model_directory, 'data/streamflow/pd_streamflow.csv'))
         self.real_run = self.real_run.set_index('dateTime')
+        self.real_run.index = pd.to_datetime(self.real_run.index)
         self.real_run.columns = self.real_run.columns.astype(int)
 
         with open('./streamflows.json') as f:
@@ -298,8 +321,10 @@ class DawuapMonteCarlo(object):
         self.model_run = df
 
         # ensures that only matching dates are compared
-        bools = [i in self.real_run.index.values for i in self.model_run.index.values]
+        bools = [i in self.model_run.index.values for i in self.real_run.index.values]
         self.model_run = self.model_run[bools]
+
+        print self.model_run
 
     def _generate_error_statistics(self):
 
@@ -340,19 +365,24 @@ class DawuapMonteCarlo(object):
             self._write_random_parameters()
             self._run_singular_model()
             self._generate_error_statistics()
-            self._clean_up()
+            # self._clean_up()
             self.run_number += 1
 
 
-# replace with your path
-test = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", 1)
+model_inputs = {'pp_temp_thres': [-1.5, 1.5],
+                'ddf': [0.5, 5.],
+                'soil_max_wat': [50., 300.],
+                'soil_beta': [0.5, 4.],
+                'aet_lp_param': [0.1, 0.95],
+                'hbv_pbase': [3, 10],
+                'hbv_hl1': [1., 30.],
+                'hbv_ck0': [0.25, 5.],
+                'hbv_ck1': [3., 40.],
+                'hbv_ck2': [50., 500.],
+                'e': [0.1, 0.4],
+                'ks': [41200., 123600.]}
 
-test._gen_error_dir()
-test._set_rand_array()
-test._write_random_parameters()
-test._run_singular_model()
-test._generate_error_statistics()
-
-
+model = DawuapMonteCarlo("/Users/cbandjelly/PycharmProjects/hydro_model", model_inputs,  2)
+model.run_model()
 
 
